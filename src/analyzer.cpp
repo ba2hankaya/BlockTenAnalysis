@@ -4,6 +4,8 @@
 #include <thread>
 #include <cassert>
 
+//#define SHOW_EACH_MOVE
+
 const int NUM_THREADS = 16;
 
 void print_array(int* arr, int size) {
@@ -14,6 +16,9 @@ void print_array(int* arr, int size) {
 }
 
 int calculate_score_for_line(const std::string& line) {
+    if (line.empty()) {
+        return -1;
+    }
     int count = 0;
     int val_array[14] = {0};
     //parse char by char for faster processing, since we know the format is always correct, we can skip some checks
@@ -42,7 +47,7 @@ int calculate_score_for_line(const std::string& line) {
         assert(count >= 0 && count <= 9);
         assert(val_array[0] <= 24);
 
-        #ifndef NDEBUG
+        #if !defined(NDEBUG) && defined(SHOW_EACH_MOVE)
         printf("%d\n", num);
         #endif
 
@@ -76,7 +81,7 @@ int calculate_score_for_line(const std::string& line) {
             count++;
         }
 
-        #ifndef NDEBUG
+        #if !defined(NDEBUG) && defined(SHOW_EACH_MOVE)
         print_array(val_array, 14);
         printf("Active cards: %d\n", count);
         printf("Score: %d\n", val_array[0]);
@@ -85,9 +90,11 @@ int calculate_score_for_line(const std::string& line) {
 
         //if there are more than 9 active cards, the game is over, so return score
         if(count > 9){
+            assert(val_array[0] <= 24 && val_array[0] >= 0);
             return val_array[0];
         }
     }
+    assert(val_array[0] <= 24 && val_array[0] >= 0);
     return val_array[0];
 }
 
@@ -105,45 +112,7 @@ void analyze_file_part(const std::string* lines, const int start_line, const int
     }
 }
 
-int main(int argc, char* argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s %s %s", argv[0], argv[1], argv[2]);
-        return 1;
-    }
-
-    std::string input_file = argv[1];
-    std::string output_file = argv[2];
-
-    int num_lines = 0;
-    std::string* lines = nullptr;
-
-    try{
-        std::ifstream file(input_file);
-        if (!file.is_open()) {
-            return 1;
-        }
-
-        file >> num_lines;
-
-        file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
-        lines = new std::string[num_lines];
-
-        if(!lines){
-            fprintf(stderr, "Memory allocation failed for lines array\n");
-            return 1;
-        }
-
-        for (int i = 0; i < num_lines; ++i) {
-            std::getline(file, lines[i]);
-        }
-        file.close();
-    }
-    catch(const std::exception& e){
-        fprintf(stderr, "Error reading input file: %s\n", e.what());
-        return 1;
-    }
-
+void process_file(const std::string& filename, const int num_lines,const std::string* lines, int* file_result) {
     int results[NUM_THREADS][25] = {0};
     std::thread threads[NUM_THREADS];
 
@@ -160,15 +129,84 @@ int main(int argc, char* argv[]) {
         threads[i].join();
     }
 
-    int final_result[25] = {0};
-
     for (int i = 0; i < NUM_THREADS; ++i) {
         for (int j = 0; j < 25; ++j) {
-            final_result[j] += results[i][j];
+            file_result[j] += results[i][j];
+        }
+    }
+}
+
+
+int main(int argc, char* argv[]) {
+    if(argc < 4){
+        fprintf(stderr, "Usage: program <input_file> <input_file1> <input_file2> ... -o <output_file>\n");
+        return 1;
+    }
+
+    std::string input_files[argc - 3];
+    std::string output_file;
+
+    for(int i = 1; i < argc - 1; ++i){
+        if(std::string(argv[i]) == "-o"){
+            if(i + 1 < argc){
+                output_file = argv[i + 1];
+            }
+            else{
+                fprintf(stderr, "Output file not specified after -o\n");
+                return 1;
+            }
+        }else{
+            input_files[i - 1] = argv[i];
         }
     }
 
+    #ifndef NDEBUG
+    printf("Output file: %s\n", output_file.c_str());
+    for(int i = 0; i < argc - 3; ++i){
+        printf("Input file %d: %s\n", i, input_files[i].c_str());
+    }
+    #endif
+
+    int final_result[25] = {0};
+
+
     try{
+        for(int i = 0; i < argc - 3; ++i){
+            int num_lines = 0;
+            std::ifstream file(input_files[i]);
+            if (!file.is_open()) {
+                throw std::runtime_error("Could not open file: " + input_files[i]);
+            }
+
+            file >> num_lines;
+
+            file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            std::string* lines = new std::string[num_lines];
+
+            for (int i = 0; i < num_lines; ++i) {
+                if(!std::getline(file, lines[i]))
+                {
+                    fprintf(stderr, "Unexpected EOF at line %d in file %s\n", i, input_files[i].c_str());
+                    lines[i] = "";
+                }
+            }
+            file.close();
+            int file_result[25] = {0};
+            process_file(input_files[i], num_lines, lines, file_result);
+            for (int j = 0; j < 25; ++j) {
+                final_result[j] += file_result[j];
+            }
+            delete[] lines;
+        }
+    }
+    catch(const std::exception& e){
+        fprintf(stderr, "Error processing input file(s): %s\n", e.what());
+        return 1;
+    }
+
+    try{
+        int total_games = 0;
         std::ofstream output(output_file);
         output << "{\n";
         for(int i = 0; i < 25; ++i) {
@@ -177,9 +215,12 @@ int main(int argc, char* argv[]) {
                 output << ",";
             }
             output << "\n";
+            total_games += final_result[i];
         }
         output << "}\n";
         output.close();
+        printf("Total number of games analyzed: %d\n", total_games);
+        printf("Wrote the results to %s\n", output_file.c_str());
     }
     catch(const std::exception& e){
         fprintf(stderr, "Error writing to output file: %s\n", e.what());
