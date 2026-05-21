@@ -16,6 +16,7 @@ for num in range(1,14):
 
 
 with open(output_file, 'w') as f:
+    f.write(f'{num_entries}\n')
     for _ in range(num_entries):
         random.shuffle(deck)
         f.write(' '.join(map(str, deck)) + '\n')
