@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
     }
     else if(argc == 4){
         max_memory_bytes = std::stoi(argv[3]) * 1024 * 1024;
-        int remainder = max_memory_bytes % 26 != 0;
+        int remainder = max_memory_bytes % 26; 
         if(remainder > 0){
             max_memory_bytes -= remainder;
             fprintf(stdout, "Max memory has been reduced to %d bytes to match deck size.\n", max_memory_bytes);
@@ -187,7 +187,7 @@ int main(int argc, char* argv[]) {
         buffer_size = buffer_size - (buffer_size % 26);
     }
 
-    ConcurrentQueue queue(max_memory_bytes);
+    ConcurrentQueue queue(max_memory_bytes/2); // HACK?: set the queue's max size to half because there is overhaed in the queue between processes taking buffers and the producer replacing them before the workers can process them
 
     int local_result_array[NUM_THREADS][25] = {0};
 
