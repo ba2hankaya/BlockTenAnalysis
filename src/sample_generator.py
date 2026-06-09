@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument('-o','--output-file', type=str, help='Output file name for the generated sample')
     parser.add_argument('-n', '--num-threads', type=int, help='Number of threads to use for generation', default=1)
     parser.add_argument('-m', '--max-memory', type=int, help='Maximum memory to use for generation in MB', default=512)
+    parser.add_argument('--append', action='store_true', help='Append to the output file instead of overwriting it')
     args = parser.parse_args()
 
     num_entries = int(args.num_entries)
@@ -59,7 +60,8 @@ if __name__ == "__main__":
     entries_per_write = num_entries // num_threads
     remaining_entries = num_entries % num_threads
 
-    open(output_file, 'wb').close()
+    if not args.append:
+        open(output_file, 'wb').close()
 
     for i in range(num_threads):
         process_entries = entries_per_write + (1 if i < remaining_entries else 0)
@@ -70,4 +72,5 @@ if __name__ == "__main__":
     for p in processes:
         p.join()
 
-    print(f"Generated {num_entries} random card sequences in {output_file} using {num_threads} threads with a maximum memory limit of {max_memory} MB.")
+    append_text = "Appended " if args.append else "Generated "
+    print(append_text + f"{num_entries} random card sequences in {output_file} using {num_threads} threads with a maximum memory limit of {max_memory} MB.")
