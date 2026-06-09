@@ -5,10 +5,12 @@
 #include <string>
 #include <sys/types.h>
 #include <cassert>
+#include "concurrentque.hpp"
+#include <thread>
 
 //#define SHOW_EACH_MOVE
 
-const std::size_t BUFFER_SIZE = 4*52*1024*1024*8/8; //208 MB
+const std::size_t BUFFER_SIZE_BYTES = 4*52*1024*1024*8/8; //208 MB
 
 const int NUM_THREADS = 16;
 
@@ -102,39 +104,56 @@ void process_buffer(char* buffer, int* result_array, std::streamsize bytes_read)
     }
 }
 
-//void process_file(const std::string& filename, const int num_lines,const std::string* lines, int* file_result) {
-//    int results[NUM_THREADS][25] = {0};
-//    std::thread threads[NUM_THREADS];
-//
-//    for (int i = 0; i < NUM_THREADS; ++i) {
-//        int start_line = i * (num_lines / NUM_THREADS);
-//        int end_line = (i + 1) * (num_lines / NUM_THREADS);
-//        if (i == NUM_THREADS - 1) {
-//            end_line = num_lines;
-//        }
-//        threads[i] = std::thread(analyze_file_part, lines, start_line, end_line, results[i]);
-//    }
-//
-//    for(int i = 0; i < NUM_THREADS; ++i) {
-//        threads[i].join();
-//    }
-//
-//    for (int i = 0; i < NUM_THREADS; ++i) {
-//        for (int j = 0; j < 25; ++j) {
-//            file_result[j] += results[i][j];
-//        }
-//    }
-//}
+void producer(std::ifstream& file, int buffer_size, ConcurrentQueue& queue, int* file_result){
+    file.seekg(0, std::ios::beg);
+    while(true){
+        char* buffer = new char[buffer_size];
+        file.read(buffer, buffer_size);
+        std::streamsize bytes_read = file.gcount();
+        if(bytes_read > 0){
+            queue.Enqueue(buffer, bytes_read);
+        }else{
+            delete [] buffer;
+            break;
+        }
+    }
+    queue.Shutdown();
+}
+
+void worker(int id, int* results,ConcurrentQueue& queue){
+    while(true){
+        char* buffer;
+        int buf_size; 
+        if(queue.Dequeue(buffer,buf_size) == -1){
+            break;
+        }else{
+            process_buffer(buffer, results, buf_size);
+            delete [] buffer;
+            buffer = nullptr;
+        }
+    }
+}
 
 
 int main(int argc, char* argv[]) {
-    if(argc != 3){
+    std::string input_file;
+    std::string output_file;
+    int max_memory_bytes;
+    if(argc == 3)
+    {
+        max_memory_bytes = -1;
+    }
+    else if(argc == 4){
+        max_memory_bytes = std::stoi(argv[3]) * 1024 * 1024;
+        int remainder = max_memory_bytes % 26 != 0;
+        if(remainder > 0){
+            max_memory_bytes -= remainder;
+            fprintf(stdout, "Max memory has been reduced to %d bytes to match deck size.\n", max_memory_bytes);
+        }
+    }else{
         fprintf(stderr, "Usage: program <input_file> <output_file>\n");
         return 1;
     }
-
-    std::string input_file;
-    std::string output_file;
 
     input_file = argv[1];
     output_file = argv[2];
@@ -150,25 +169,45 @@ int main(int argc, char* argv[]) {
     if(!file)
     {
         fprintf(stderr, "failed to open the input file.\n");
-        return 1;
+        exit(1);
     }
 
-    std::streamsize size = file.tellg();
+    std::streamsize total_size_bytes = file.tellg();
+    int total_deck_count = total_size_bytes / 26;
+    int buffer_size;
 
-    file.seekg(0, std::ios::beg);
+    if(max_memory_bytes == -1){
+        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/NUM_THREADS/2) ? BUFFER_SIZE_BYTES : total_size_bytes/NUM_THREADS;
+        max_memory_bytes = INT32_MAX;
+    }else{
+        buffer_size = max_memory_bytes / NUM_THREADS / 2;
+    }
 
-    uint32_t num_entries = size * 8 / (4*52);
-    char* buffer = new char[BUFFER_SIZE];
-    int local_result_array[25] = {0};
-    while(file.read(buffer, BUFFER_SIZE) || file.gcount() > 0){
-        std::streamsize bytes_read = file.gcount();
-        if(bytes_read > 0){
-            process_buffer(buffer, local_result_array, bytes_read);
+    if(buffer_size % 26 != 0){
+        buffer_size = buffer_size - (buffer_size % 26);
+    }
+
+    ConcurrentQueue queue(max_memory_bytes);
+
+    int local_result_array[NUM_THREADS][25] = {0};
+
+    std::thread workers[NUM_THREADS];
+
+
+    for(int i = 0; i < NUM_THREADS; i++){
+        workers[i] = std::thread(worker, i, local_result_array[i], std::ref(queue));
+    }
+
+    producer(file, buffer_size, queue, final_result);
+
+    for(int i = 0; i < NUM_THREADS; i++){
+        workers[i].join();
+    }
+
+    for(int i = 0; i < NUM_THREADS; i++){
+        for(int j = 0; j < 25; j++){
+            final_result[j] += local_result_array[i][j];
         }
-    }
-
-    for(int i = 0; i < 25; i++){
-        final_result[i] = local_result_array[i];
     }
 
     try{
