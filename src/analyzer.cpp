@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
             fprintf(stdout, "Max memory has been reduced to %d bytes to match deck size.\n", max_memory_bytes);
         }
     }else{
-        fprintf(stderr, "Usage: program <input_file> <output_file>\n");
+        fprintf(stderr, "Usage: program <input_file> <output_file> <optional:max_memory_usage_in_MB>\n");
         return 1;
     }
 
