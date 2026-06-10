@@ -270,7 +270,7 @@ int main(int argc, char* argv[]) {
         printf("Total number of games analyzed: %d\n", total_games);
         printf("Wrote the results to %s\n", output_file.c_str());
 
-        printf("[%.6f, %d, %d, %d]\n", elapsed_time / 1e6, total_games, num_workers, max_memory_bytes);       
+        printf("{\"time\": %.6f, \"games\": %d, \"workers\": %d, \"memory_bytes\": %d}\n", elapsed_time / 1e6, total_games, num_workers, max_memory_bytes);
     }
     catch(const std::exception& e){
         fprintf(stderr, "Error writing to output file: %s\n", e.what());
