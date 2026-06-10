@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
     int max_memory_bytes = -1;
     int num_workers = 1;
     if(argc < 3 || argc > 8){
-        fprintf(stderr, "Usage: program <input_file> -o <output_file> -m <optional:max_memory_usage_in_MB> -w <optional:num_workers>\n");
+        fprintf(stderr, "Usage: program <input_file> -o <optional:output_file> -m <optional:max_memory_usage_in_MB> -w <optional:num_workers>\n");
         return 1;
     }
 
@@ -186,7 +186,7 @@ int main(int argc, char* argv[]) {
     }
 
     if(output_file.empty()){
-        output_file = input_file.substr(0, input_file.find_last_of(".")) + "_results.json";
+        output_file = "../results/" + input_file.substr(input_file.find_last_of("/\\") + 1, input_file.find_last_of(".")) + "_results.json";
     }
 
     #ifndef NDEBUG
@@ -270,7 +270,7 @@ int main(int argc, char* argv[]) {
         printf("Total number of games analyzed: %d\n", total_games);
         printf("Wrote the results to %s\n", output_file.c_str());
 
-        printf("{\"elapsed_time_seconds\": %.6f, \"total_games\": %d, \"num_workers\": %d, \"max_memory_bytes\": %d}\n", elapsed_time / 1e6, total_games, num_workers, max_memory_bytes);       
+        printf("[%.6f, %d, %d, %d]\n", elapsed_time / 1e6, total_games, num_workers, max_memory_bytes);       
     }
     catch(const std::exception& e){
         fprintf(stderr, "Error writing to output file: %s\n", e.what());
