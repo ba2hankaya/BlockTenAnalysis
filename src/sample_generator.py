@@ -40,7 +40,10 @@ if __name__ == "__main__":
     output_file = args.output_file
     num_threads = int(args.num_threads)
     max_memory = int(args.max_memory)
+    append = args.append
+    main(num_entries, output_file, num_threads, max_memory, append=append)
 
+def main(num_entries, output_file, num_threads, max_memory, append=False):
     base_seed = int(time.time()*1000)
     threads = []
 
@@ -57,7 +60,7 @@ if __name__ == "__main__":
 
     per_thread_max_memory = max_memory_bytes // num_threads
 
-    if not args.append:
+    if not append:
         open(output_file, 'wb').close()
 
     for i in range(num_threads):
@@ -79,5 +82,5 @@ if __name__ == "__main__":
     for t in threads:
         t.join()
 
-    append_text = "Appended " if args.append else "Generated "
+    append_text = "Appended " if append else "Generated "
     print(append_text + f"{num_entries} random card sequences in {output_file} using {num_threads} threads with a maximum memory limit of {max_memory} MB.")
