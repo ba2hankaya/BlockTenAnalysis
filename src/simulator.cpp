@@ -7,12 +7,11 @@
 #include <cassert>
 #include "concurrentque.hpp"
 #include <thread>
+#include <chrono>
 
 //#define SHOW_EACH_MOVE
 
 const std::size_t BUFFER_SIZE_BYTES = 4*52*1024*1024*8/8; //208 MB
-
-const int NUM_THREADS = 16;
 
 int score_of_subarray(char* buffer, int start_index){
     int val_array[14] = {0};
@@ -136,27 +135,59 @@ void worker(int id, int* results,ConcurrentQueue& queue){
 
 
 int main(int argc, char* argv[]) {
-    std::string input_file;
-    std::string output_file;
-    int max_memory_bytes;
-    if(argc == 3)
-    {
-        max_memory_bytes = -1;
-    }
-    else if(argc == 4){
-        max_memory_bytes = std::stoi(argv[3]) * 1024 * 1024;
-        int remainder = max_memory_bytes % 26; 
-        if(remainder > 0){
-            max_memory_bytes -= remainder;
-            fprintf(stdout, "Max memory has been reduced to %d bytes to match deck size.\n", max_memory_bytes);
-        }
-    }else{
-        fprintf(stderr, "Usage: program <input_file> <output_file> <optional:max_memory_usage_in_MB>\n");
+    std::string input_file = "";
+    std::string output_file = "";
+    int max_memory_bytes = -1;
+    int num_workers = 1;
+    if(argc < 3 || argc > 8){
+        fprintf(stderr, "Usage: program <input_file> -o <output_file> -m <optional:max_memory_usage_in_MB> -w <optional:num_workers>\n");
         return 1;
     }
 
-    input_file = argv[1];
-    output_file = argv[2];
+    for(int i = 1; i < argc; i++){
+        std::string arg = argv[i];
+        if(arg == "-o"){
+            if(i + 1 < argc){
+                output_file = argv[i + 1];
+                i++;
+            }else{
+                fprintf(stderr, "Output file not specified after -o flag.\n");
+                return 1;
+            }
+        }else if(arg == "-m"){
+            if(i + 1 < argc){
+                max_memory_bytes = std::stoi(argv[i + 1]) * 1024 * 1024;
+                int remainder = max_memory_bytes % 26; 
+                if(remainder > 0){
+                    max_memory_bytes -= remainder;
+                    fprintf(stdout, "Max memory has been reduced to %d bytes to match deck size.\n", max_memory_bytes);
+                }
+                i++;
+            }else{
+                fprintf(stderr, "Max memory usage not specified after -m flag.\n");
+                return 1;
+            }
+        }else if(arg == "-w"){
+            if(i + 1 < argc){
+                num_workers = std::stoi(argv[i + 1]);
+                i++;
+            }else{
+                fprintf(stderr, "Number of workers not specified after -w flag.\n");
+                return 1;
+            }
+        }else if(i == 1){ 
+            input_file = arg;
+        }
+    }
+
+    if(input_file.empty()){
+        fprintf(stderr, "Input file not specified.\n");
+        return 1;
+    }
+
+    if(output_file.empty()){
+        output_file = input_file.substr(0, input_file.find_last_of(".")) + "_results.json";
+    }
 
     #ifndef NDEBUG
     printf("Output file: %s\n", output_file.c_str());
@@ -177,10 +208,10 @@ int main(int argc, char* argv[]) {
     int buffer_size;
 
     if(max_memory_bytes == -1){
-        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/NUM_THREADS/2) ? BUFFER_SIZE_BYTES : total_size_bytes/NUM_THREADS;
+        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/num_workers/2) ? BUFFER_SIZE_BYTES : total_size_bytes/num_workers;
         max_memory_bytes = INT32_MAX;
     }else{
-        buffer_size = max_memory_bytes / NUM_THREADS / 2;
+        buffer_size = max_memory_bytes / num_workers / 2;
     }
 
     if(buffer_size % 26 != 0){
@@ -189,26 +220,38 @@ int main(int argc, char* argv[]) {
 
     ConcurrentQueue queue(max_memory_bytes/2); // HACK?: set the queue's max size to half because there is overhaed in the queue between processes taking buffers and the producer replacing them before the workers can process them
 
-    int local_result_array[NUM_THREADS][25] = {0};
+    int** local_result_array = new int*[num_workers];
+    for(int i = 0; i < num_workers; i++){
+        local_result_array[i] = new int[25]{0};
+    }
 
-    std::thread workers[NUM_THREADS];
+    std::thread workers[num_workers];
 
 
-    for(int i = 0; i < NUM_THREADS; i++){
+    for(int i = 0; i < num_workers; i++){
         workers[i] = std::thread(worker, i, local_result_array[i], std::ref(queue));
     }
 
+    auto start_time = std::chrono::steady_clock::now();
     producer(file, buffer_size, queue, final_result);
 
-    for(int i = 0; i < NUM_THREADS; i++){
+    for(int i = 0; i < num_workers; i++){
         workers[i].join();
     }
 
-    for(int i = 0; i < NUM_THREADS; i++){
+    for(int i = 0; i < num_workers; i++){
         for(int j = 0; j < 25; j++){
             final_result[j] += local_result_array[i][j];
         }
     }
+
+    for(int i = 0; i < num_workers; i++){
+        delete [] local_result_array[i];
+    }
+    delete [] local_result_array;
+
+    auto end_time = std::chrono::steady_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
 
     try{
         int total_games = 0;
@@ -226,6 +269,8 @@ int main(int argc, char* argv[]) {
         output.close();
         printf("Total number of games analyzed: %d\n", total_games);
         printf("Wrote the results to %s\n", output_file.c_str());
+
+        printf("{\"elapsed_time_seconds\": %.6f, \"total_games\": %d, \"num_workers\": %d, \"max_memory_bytes\": %d}\n", elapsed_time / 1e6, total_games, num_workers, max_memory_bytes);       
     }
     catch(const std::exception& e){
         fprintf(stderr, "Error writing to output file: %s\n", e.what());
