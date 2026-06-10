@@ -27,22 +27,6 @@ def generate_sequences(num_entries, seed, output_file, file_lock, num_of_writes)
         
         del raw_bytes
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Generate a sample file with random card sequences.')
-    parser.add_argument('num_entries', type=int, help='Number of random card sequences to generate')
-    parser.add_argument('-o','--output-file', type=str, help='Output file name for the generated sample')
-    parser.add_argument('-n', '--num-threads', type=int, help='Number of threads to use for generation', default=1)
-    parser.add_argument('-m', '--max-memory', type=int, help='Maximum memory to use for generation in MB', default=512)
-    parser.add_argument('--append', action='store_true', help='Append to the output file instead of overwriting it')
-    args = parser.parse_args()
-
-    num_entries = int(args.num_entries)
-    output_file = args.output_file
-    num_threads = int(args.num_threads)
-    max_memory = int(args.max_memory)
-    append = args.append
-    main(num_entries, output_file, num_threads, max_memory, append=append)
-
 def main(num_entries, output_file, num_threads, max_memory, append=False):
     base_seed = int(time.time()*1000)
     threads = []
@@ -84,3 +68,19 @@ def main(num_entries, output_file, num_threads, max_memory, append=False):
 
     append_text = "Appended " if append else "Generated "
     print(append_text + f"{num_entries} random card sequences in {output_file} using {num_threads} threads with a maximum memory limit of {max_memory} MB.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Generate a sample file with random card sequences.')
+    parser.add_argument('num_entries', type=int, help='Number of random card sequences to generate')
+    parser.add_argument('-o','--output-file', type=str, help='Output file name for the generated sample')
+    parser.add_argument('-n', '--num-threads', type=int, help='Number of threads to use for generation', default=1)
+    parser.add_argument('-m', '--max-memory', type=int, help='Maximum memory to use for generation in MB', default=512)
+    parser.add_argument('--append', action='store_true', help='Append to the output file instead of overwriting it')
+    args = parser.parse_args()
+
+    num_entries = int(args.num_entries)
+    output_file = args.output_file
+    num_threads = int(args.num_threads)
+    max_memory = int(args.max_memory)
+    append = args.append
+    main(num_entries, output_file, num_threads, max_memory, append=append)
