@@ -10,7 +10,7 @@ def generate_samples(min_power, max_power, num_samples):
     
     for power in powers:
         n = int(10 ** power)
-        bin_name = f"../samples/10e{power:.2f}.bin"
+        bin_name = f"../samples/1e{power:.2f}.bin"
         sample_generator.main(n, bin_name, 16, 512)
 
 def run_simulator(pow_thread, pow_mem):
