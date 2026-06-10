@@ -208,17 +208,17 @@ int main(int argc, char* argv[]) {
     int buffer_size;
 
     if(max_memory_bytes == -1){
-        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/num_workers/2) ? BUFFER_SIZE_BYTES : total_size_bytes/num_workers;
+        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/num_workers/8) ? BUFFER_SIZE_BYTES : total_size_bytes/num_workers;
         max_memory_bytes = INT32_MAX;
     }else{
-        buffer_size = max_memory_bytes / num_workers / 2;
+        buffer_size = max_memory_bytes / num_workers / 4;
     }
 
     if(buffer_size % 26 != 0){
         buffer_size = buffer_size - (buffer_size % 26);
     }
 
-    ConcurrentQueue queue(max_memory_bytes/2); // HACK?: set the queue's max size to half because there is overhaed in the queue between processes taking buffers and the producer replacing them before the workers can process them
+    ConcurrentQueue queue(max_memory_bytes/4); 
 
     int** local_result_array = new int*[num_workers];
     for(int i = 0; i < num_workers; i++){
