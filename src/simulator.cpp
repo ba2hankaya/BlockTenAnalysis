@@ -86,6 +86,7 @@ int score_of_subarray(char* buffer, int start_index){
             count++;
         }
 
+        //if there are more than 9 active cards, the game is over, so return score
         if(count > 9){
             assert(val_array[0] <= 24 && val_array[0] >= 0);
             return val_array[0];
@@ -207,8 +208,9 @@ int main(int argc, char* argv[]) {
     int total_deck_count = total_size_bytes / 26;
     int buffer_size;
 
+    //NOTE: We divide max_memory_bytes by 4 to leave room for the local result arrays in memory, and we divide by num_workers to ensure that each worker has enough memory to process its buffer and store its local results without exceeding the total memory limit. The buffer size is further adjusted to be a multiple of 26 to ensure that we always read complete decks of cards.
     if(max_memory_bytes == -1){
-        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/num_workers/8) ? BUFFER_SIZE_BYTES : total_size_bytes/num_workers;
+        buffer_size = BUFFER_SIZE_BYTES < (total_size_bytes/num_workers/4) ? BUFFER_SIZE_BYTES : total_size_bytes/num_workers/4;
         max_memory_bytes = INT32_MAX;
     }else{
         buffer_size = max_memory_bytes / num_workers / 4;
